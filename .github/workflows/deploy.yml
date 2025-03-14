@@ -16,11 +16,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Create Config File
-        env:
-          API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
         run: |
           mkdir -p js
-          cat > js/config.js << 'EOL'
+          API_KEY="$SPOONACULAR_API_KEY"
+          cat > js/config.js << EOF
           const CONFIG = {
               API: {
                   EDAMAM: {
@@ -31,7 +30,7 @@ jobs:
                   },
                   SPOONACULAR: {
                       BASE_URL: "https://api.spoonacular.com/recipes",
-                      API_KEY: "PLACEHOLDER_API_KEY",
+                      API_KEY: "${API_KEY}",
                   }
               },
               DEFAULT_PARAMS: {
@@ -41,11 +40,28 @@ jobs:
                   IS_LOADING: false
               }
           };
-          EOL
-          # Replace placeholder with the API key from environment variable
-          sed -i "s/PLACEHOLDER_API_KEY/$API_KEY/g" js/config.js
+          EOF
+        env:
+          SPOONACULAR_API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16' # Using a stable version
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions@github.com"
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: . # The folder to deploy
+          clean: true # Automatically remove deleted files from the deploy branch
+          clean-exclude: | # Exclude these files/folders from being cleaned
+            .gitignore
+            .nojekyll
+          git-config-name: GitHub Actions
+          git-config-email: github-actions@github.com
+          single-commit: true
