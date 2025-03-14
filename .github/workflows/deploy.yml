@@ -15,7 +15,8 @@ jobs:
       - name: Create Config File 🔑
         run: |
           # Create the config.js file with the API key from secrets
-          cat > js/config.js << EOF
+          mkdir -p js
+          cat > js/config.js << 'EOF'
           /**
            * Configuration settings for the Recipe Finder app
            * Contains API endpoints and keys
@@ -35,7 +36,7 @@ jobs:
                   // Spoonacular API configuration
                   SPOONACULAR: {
                       BASE_URL: 'https://api.spoonacular.com/recipes',
-                      API_KEY: '${{ secrets.SPOONACULAR_API_KEY }}',
+                      API_KEY: "${{ secrets.SPOONACULAR_API_KEY }}",
                   }
               },
               

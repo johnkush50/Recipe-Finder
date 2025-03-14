@@ -5,7 +5,7 @@
 
 const RecipeAPI = (() => {
     // Private variables and methods
-    const apiInUse = 'EDAMAM'; // Set which API to use ('EDAMAM' or 'SPOONACULAR')
+    const apiInUse = 'SPOONACULAR'; // Set which API to use ('EDAMAM' or 'SPOONACULAR')
     
     /**
      * Constructs the API URL based on the search query and configuration

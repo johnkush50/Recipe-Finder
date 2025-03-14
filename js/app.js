@@ -32,6 +32,13 @@ const App = (() => {
             
             // Hide loading and render results
             UI.hideLoading();
+            
+            // Check if we got proper results
+            if (!recipes || recipes.length === 0) {
+                UI.showError('No recipes found. Try different search terms.');
+                return;
+            }
+            
             UI.renderRecipes(recipes, query);
             
             // Scroll to results section
@@ -39,7 +46,7 @@ const App = (() => {
         } catch (error) {
             // Handle errors
             UI.hideLoading();
-            UI.showError('An error occurred while searching for recipes. Please try again later.');
+            UI.showError(`Error searching for recipes: ${error.message || 'Please try again later.'}`);
             console.error('Search error:', error);
         }
     };
