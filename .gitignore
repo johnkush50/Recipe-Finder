@@ -1,0 +1,19 @@
+# Ignore configuration files with API keys
+js/config.js
+config.js
+
+# Ignore OS specific files
+.DS_Store
+Thumbs.db
+
+# Ignore editor files
+.vscode/
+.idea/
+*.sublime*
+
+# Ignore logs
+*.log
+npm-debug.log*
+
+# Ignore node modules if using npm
+node_modules/
