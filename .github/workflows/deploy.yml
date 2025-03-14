@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch: # Allows manual triggering
 
+permissions:
+  contents: write # This is important for GitHub Pages deployment
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
