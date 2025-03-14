@@ -19,11 +19,15 @@ const UI = (() => {
         card.className = 'recipe-card';
         card.dataset.recipeId = recipe.id;
         
-        // Calculate recipe image URL or use placeholder
-        const imageUrl = recipe.image || 'images/placeholder.jpg';
+        // Check for missing image and use placeholder if needed
+        const imageUrl = recipe.image 
+            ? recipe.image 
+            : 'https://via.placeholder.com/300x200?text=No+Image+Available';
         
-        // Create time and calories elements if available
+        // Build meta information (cooking time, servings, etc.)
         let metaHtml = '';
+        
+        // Add cooking time if available
         if (recipe.readyInMinutes) {
             metaHtml += `
                 <div class="recipe-time">
@@ -32,19 +36,32 @@ const UI = (() => {
             `;
         }
         
-        if (recipe.calories) {
+        // Add servings if available
+        if (recipe.servings) {
             metaHtml += `
-                <div class="recipe-calories">
-                    <i class="fas fa-fire"></i> ${recipe.calories} cal
+                <div class="recipe-servings">
+                    <i class="fas fa-user-friends"></i> ${recipe.servings} servings
                 </div>
             `;
         }
         
         // Add ingredient usage counts for ingredient search results
         if (recipe.usedIngredientCount !== undefined) {
+            // Show ingredient match score with a progress bar
+            const totalIngredients = recipe.usedIngredientCount + recipe.missedIngredientCount;
+            const matchPercentage = totalIngredients > 0 
+                ? Math.round((recipe.usedIngredientCount / totalIngredients) * 100) 
+                : 0;
+            
             metaHtml += `
-                <div class="recipe-ingredients-match">
-                    <i class="fas fa-check-circle"></i> ${recipe.usedIngredientCount} matching
+                <div class="recipe-match-container">
+                    <div class="recipe-match-progress">
+                        <div class="recipe-match-bar" style="width: ${matchPercentage}%;"></div>
+                    </div>
+                    <div class="recipe-match-text">
+                        <span class="match-used"><i class="fas fa-check-circle"></i> ${recipe.usedIngredientCount} matched</span>
+                        <span class="match-missed"><i class="fas fa-times-circle"></i> ${recipe.missedIngredientCount} missing</span>
+                    </div>
                 </div>
             `;
         }
@@ -74,10 +91,39 @@ const UI = (() => {
     const renderRecipeDetails = (recipe) => {
         const recipeDetails = document.getElementById('recipe-details');
         
-        // Format the ingredients and instructions
-        const ingredientsList = recipe.ingredients.map(ingredient => 
-            `<li>${ingredient}</li>`
-        ).join('');
+        // Check if we have used/missed ingredients from ingredient search
+        let ingredientsHtml = '';
+        
+        if (recipe.usedIngredients && recipe.missedIngredients) {
+            // Create two sections: matched and missing ingredients
+            const usedIngredientsList = recipe.usedIngredients.map(ingredient => 
+                `<li class="used-ingredient"><i class="fas fa-check-circle"></i> ${ingredient}</li>`
+            ).join('');
+            
+            const missedIngredientsList = recipe.missedIngredients.map(ingredient => 
+                `<li class="missed-ingredient"><i class="fas fa-times-circle"></i> ${ingredient}</li>`
+            ).join('');
+            
+            ingredientsHtml = `
+                <div class="ingredient-match-info">
+                    <h4>Matched Ingredients</h4>
+                    <ul class="ingredients-list matched-list">
+                        ${usedIngredientsList || '<li>No matched ingredients</li>'}
+                    </ul>
+                    <h4>Additional Ingredients Needed</h4>
+                    <ul class="ingredients-list missing-list">
+                        ${missedIngredientsList || '<li>No additional ingredients needed</li>'}
+                    </ul>
+                </div>
+            `;
+        } else {
+            // Standard ingredient list from recipe search
+            ingredientsHtml = `
+                <ul class="ingredients-list">
+                    ${recipe.ingredients.map(ingredient => `<li>${ingredient}</li>`).join('')}
+                </ul>
+            `;
+        }
         
         let instructionsHtml = '';
         if (recipe.analyzedInstructions && recipe.analyzedInstructions.length > 0) {
@@ -120,7 +166,7 @@ const UI = (() => {
             <div class="recipe-content">
                 <div class="recipe-ingredients">
                     <h3><i class="fas fa-list"></i> Ingredients</h3>
-                    <ul>${ingredientsList}</ul>
+                    ${ingredientsHtml}
                 </div>
                 
                 <div class="recipe-instructions">
@@ -241,6 +287,7 @@ const UI = (() => {
         showLoading,
         hideLoading,
         showError,
-        hideError
+        hideError,
+        createNoResultsMessage
     };
 })();

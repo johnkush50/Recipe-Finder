@@ -11,59 +11,6 @@ const RecipeAPI = (() => {
     const MAX_RESULTS = CONFIG.DEFAULT_PARAMS.MAX_RESULTS || 12;
     
     /**
-     * Test the API connection directly
-     * This function is purely for debugging API key issues
-     */
-    const testApiConnection = async () => {
-        try {
-            console.log('=== TESTING API CONNECTION ===');
-            console.log('Current CONFIG:', JSON.stringify({
-                hasConfig: !!CONFIG,
-                hasAPI: CONFIG && !!CONFIG.API,
-                hasSpoonacular: CONFIG && CONFIG.API && !!CONFIG.API.SPOONACULAR,
-                hasAPIKey: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && !!CONFIG.API.SPOONACULAR.API_KEY,
-                keyLength: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && CONFIG.API.SPOONACULAR.API_KEY ? 
-                          CONFIG.API.SPOONACULAR.API_KEY.length : 0
-            }));
-            
-            if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
-                throw new Error('API configuration is missing');
-            }
-            
-            const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
-            console.log('Using API key:', apiKey);
-            
-            // Make a very simple test request
-            const testUrl = `https://api.spoonacular.com/recipes/complexSearch?query=pasta&number=1&apiKey=${apiKey}`;
-            console.log('Testing with URL:', testUrl);
-            
-            const response = await fetch(testUrl);
-            console.log('Response status:', response.status, response.statusText);
-            
-            const text = await response.text();
-            console.log('Response text:', text);
-            
-            try {
-                const data = JSON.parse(text);
-                console.log('Parsed response:', data);
-                if (data.results && data.results.length > 0) {
-                    console.log('✅ API TEST SUCCESSFUL');
-                    return true;
-                } else if (data.status === 'failure') {
-                    console.error('❌ API TEST FAILED:', data.message || 'Unknown error');
-                    return false;
-                }
-            } catch (e) {
-                console.error('❌ Failed to parse response:', e);
-                return false;
-            }
-        } catch (error) {
-            console.error('❌ API TEST ERROR:', error);
-            return false;
-        }
-    };
-    
-    /**
      * Search for recipes by name
      * @param {string} query - Recipe name query
      * @returns {Promise<Array>} Array of recipe objects
@@ -71,23 +18,7 @@ const RecipeAPI = (() => {
     const searchRecipesByName = async (query) => {
         console.log('Searching recipes by name:', query);
         
-        // First test the API connection
-        const apiTest = await testApiConnection();
-        if (!apiTest) {
-            throw new Error('API connection test failed. Please check your API key.');
-        }
-        
         try {
-            // Display current CONFIG values to debug
-            console.log('CONFIG object:', JSON.stringify({
-                hasConfig: !!CONFIG,
-                hasAPI: CONFIG && !!CONFIG.API,
-                hasSpoonacular: CONFIG && CONFIG.API && !!CONFIG.API.SPOONACULAR,
-                hasAPIKey: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && !!CONFIG.API.SPOONACULAR.API_KEY,
-                keyLength: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && CONFIG.API.SPOONACULAR.API_KEY ? 
-                          CONFIG.API.SPOONACULAR.API_KEY.length : 0
-            }));
-            
             // Check if CONFIG and API key are properly loaded
             if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
                 console.error('API configuration missing or invalid:', CONFIG);
@@ -97,13 +28,7 @@ const RecipeAPI = (() => {
             const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
             const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
             
-            // Check if the API key has the correct format (hex string)
-            const hasValidFormat = /^[0-9a-f]{24,}$/.test(apiKey);
-            if (!hasValidFormat) {
-                console.warn('API key may not be valid format:', apiKey);
-            }
-            
-            console.log('Using API key:', apiKey);
+            console.log('Using API key:', apiKey ? 'Key available (hidden for security)' : 'No key available');
             
             // Set up endpoint and parameters
             const endpoint = '/complexSearch';
@@ -119,29 +44,17 @@ const RecipeAPI = (() => {
             const url = new URL(`${baseUrl}${endpoint}`);
             Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
             
-            console.log('Fetching from:', url.toString());
+            // Hide API key in logs
+            const logUrl = url.toString().replace(apiKey, '********');
+            console.log('Fetching from:', logUrl);
             
             // Fetch data from API
-            console.log('Starting fetch request...');
             const response = await fetch(url);
-            console.log('Fetch response received:', response.status, response.statusText);
             
             // Check if the request was successful
             if (!response.ok) {
-                const errorText = await response.text();
-                let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-                
-                try {
-                    // Try to parse the error response as JSON
-                    const errorData = JSON.parse(errorText);
-                    errorMessage = `API Error: ${errorData.message || errorData.status || errorText}`;
-                    console.error('API error details:', errorData);
-                } catch (e) {
-                    // If parsing fails, use the raw text
-                    console.error('Raw API error response:', errorText);
-                }
-                
-                throw new Error(errorMessage);
+                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
             }
             
             const data = await response.json();
@@ -173,36 +86,124 @@ const RecipeAPI = (() => {
             
             console.log('Using API key:', apiKey ? 'Key available (hidden for security)' : 'No key available');
             
-            // Set up endpoint and parameters
-            const endpoint = '/findByIngredients';
-            const params = {
-                ingredients: ingredients.join(','),
-                number: MAX_RESULTS,
-                ranking: 2, // maximize used ingredients
-                ignorePantry: true,
+            // Step 1: First find recipes by ingredients with detailed information
+            const ingredientEndpoint = '/findByIngredients';
+            const ingredientParams = {
+                ingredients: ingredients.join(',+'),  // Use + for better URL encoding
+                number: MAX_RESULTS * 2,  // Get more results initially, we'll filter later
+                ranking: 1,  // 1 = maximize used ingredients, minimize missing ingredients
+                ignorePantry: true,  // Don't count pantry items as "missing"
                 apiKey: apiKey
             };
             
             // Build URL with parameters
-            const url = new URL(`${baseUrl}${endpoint}`);
-            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+            const ingredientUrl = new URL(`${baseUrl}${ingredientEndpoint}`);
+            Object.keys(ingredientParams).forEach(key => ingredientUrl.searchParams.append(key, ingredientParams[key]));
             
             // Hide API key in logs
-            const logUrl = url.toString().replace(apiKey, '********');
+            const logUrl = ingredientUrl.toString().replace(apiKey, '********');
             console.log('Fetching from:', logUrl);
             
             // Fetch data from API
-            const response = await fetch(url);
+            const ingredientResponse = await fetch(ingredientUrl);
             
             // Check if the request was successful
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
-                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+            if (!ingredientResponse.ok) {
+                const errorData = await ingredientResponse.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${ingredientResponse.status}: ${errorData.message || ingredientResponse.statusText}`);
             }
             
-            const data = await response.json();
-            console.log('API response received with', data.length, 'recipes');
-            return processIngredientSearchResults(data);
+            const ingredientData = await ingredientResponse.json();
+            console.log('Initial ingredient search returned', ingredientData.length, 'recipes');
+            
+            if (!Array.isArray(ingredientData) || ingredientData.length === 0) {
+                return [];
+            }
+            
+            // Step 2: Get recipe information for the top matches
+            // Filter to recipes that use at least half of the provided ingredients or have few missing ingredients
+            const filteredResults = ingredientData
+                .filter(recipe => {
+                    // Calculate the percentage of provided ingredients used
+                    const usedPercentage = recipe.usedIngredientCount / ingredients.length;
+                    // Look for recipes that use at least 50% of provided ingredients
+                    // OR have fewer than 3 missing ingredients if multiple ingredients were provided
+                    return usedPercentage >= 0.5 || 
+                           (ingredients.length > 1 && recipe.missedIngredientCount <= 3);
+                })
+                .slice(0, MAX_RESULTS); // Limit to requested number of results
+            
+            // Extract the recipe IDs to fetch full details
+            const recipeIds = filteredResults.map(recipe => recipe.id);
+            
+            if (recipeIds.length === 0) {
+                return [];
+            }
+            
+            // Step 3: Get bulk recipe information for the filtered recipes
+            const infoEndpoint = '/informationBulk';
+            const infoParams = {
+                ids: recipeIds.join(','),
+                includeNutrition: true,
+                apiKey: apiKey
+            };
+            
+            const infoUrl = new URL(`${baseUrl}${infoEndpoint}`);
+            Object.keys(infoParams).forEach(key => infoUrl.searchParams.append(key, infoParams[key]));
+            
+            const infoResponse = await fetch(infoUrl);
+            
+            if (!infoResponse.ok) {
+                const errorData = await infoResponse.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${infoResponse.status}: ${errorData.message || infoResponse.statusText}`);
+            }
+            
+            const recipesWithDetails = await infoResponse.json();
+            console.log('Retrieved full details for', recipesWithDetails.length, 'recipes');
+            
+            // Step 4: Combine the data from both API calls
+            const enhancedResults = recipesWithDetails.map(detailedRecipe => {
+                // Find the matching recipe from the ingredient search
+                const ingredientMatch = filteredResults.find(r => r.id === detailedRecipe.id);
+                
+                // Return a combined object with the best data from both
+                return {
+                    id: detailedRecipe.id,
+                    title: detailedRecipe.title,
+                    image: detailedRecipe.image,
+                    readyInMinutes: detailedRecipe.readyInMinutes,
+                    servings: detailedRecipe.servings,
+                    calories: detailedRecipe.nutrition ? 
+                              Math.round(detailedRecipe.nutrition.nutrients.find(n => n.name === 'Calories')?.amount || 0) : 
+                              null,
+                    // Include both used and missed ingredients from the ingredient search
+                    ingredients: detailedRecipe.extendedIngredients ? 
+                                 detailedRecipe.extendedIngredients.map(ing => ing.original) : 
+                                 [],
+                    // Add match information from the ingredient search
+                    usedIngredientCount: ingredientMatch ? ingredientMatch.usedIngredientCount : 0,
+                    missedIngredientCount: ingredientMatch ? ingredientMatch.missedIngredientCount : 0,
+                    // Calculate a match score for better sorting (higher is better)
+                    matchScore: ingredientMatch ? 
+                                (ingredientMatch.usedIngredientCount * 2) - ingredientMatch.missedIngredientCount : 
+                                0,
+                    // Add information about which ingredients were used
+                    usedIngredients: ingredientMatch ? 
+                                     ingredientMatch.usedIngredients.map(ing => ing.original) : 
+                                     [],
+                    missedIngredients: ingredientMatch ? 
+                                       ingredientMatch.missedIngredients.map(ing => ing.original) : 
+                                       [],
+                    summary: detailedRecipe.summary,
+                    instructions: detailedRecipe.instructions,
+                    sourceUrl: detailedRecipe.sourceUrl
+                };
+            });
+            
+            // Sort by match score (highest first)
+            enhancedResults.sort((a, b) => b.matchScore - a.matchScore);
+            
+            return enhancedResults;
         } catch (error) {
             console.error('API error:', error);
             throw new Error(`API error: ${error.message}`);
@@ -234,9 +235,8 @@ const RecipeAPI = (() => {
     };
     
     /**
-     * Process results from ingredient search
-     * @param {Array} data - API response data
-     * @returns {Array} Processed recipe results
+     * Process results from ingredient search 
+     * This function is kept for backward compatibility but no longer used with the improved search
      */
     const processIngredientSearchResults = (data) => {
         if (!Array.isArray(data)) {
@@ -323,7 +323,6 @@ const RecipeAPI = (() => {
     return {
         searchRecipesByName,
         searchRecipesByIngredients,
-        fetchRecipeDetails,
-        testApiConnection // Add this for debugging
+        fetchRecipeDetails
     };
 })();

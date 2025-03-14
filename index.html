@@ -54,14 +54,6 @@
             </div>
         </section>
 
-        <!-- API Test Button (temporary for debugging) -->
-        <section id="debug-section" style="margin: 20px 0; text-align: center;">
-            <button id="test-api-btn" style="padding: 10px 15px; background-color: #f1c40f; color: #333; border: none; border-radius: 4px; cursor: pointer;">
-                <i class="fas fa-wrench"></i> Test API Connection
-            </button>
-            <div id="api-test-result" style="margin-top: 10px; font-family: monospace;"></div>
-        </section>
-
         <section id="results-section">
             <h2>Search Results</h2>
             <!-- Recipe cards will be displayed here dynamically -->
@@ -95,29 +87,5 @@
     <script src="js/ui.js"></script>
     <script src="js/modal.js"></script>
     <script src="js/app.js"></script>
-
-    <!-- Temporary Debug Script -->
-    <script>
-        document.getElementById('test-api-btn').addEventListener('click', async function() {
-            const resultDiv = document.getElementById('api-test-result');
-            resultDiv.innerHTML = 'Testing API connection...';
-            resultDiv.style.color = '#333';
-            
-            try {
-                const result = await RecipeAPI.testApiConnection();
-                if (result) {
-                    resultDiv.innerHTML = '✅ API connection successful!';
-                    resultDiv.style.color = 'green';
-                } else {
-                    resultDiv.innerHTML = '❌ API connection failed. Check console for details.';
-                    resultDiv.style.color = 'red';
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `❌ Error: ${error.message}`;
-                resultDiv.style.color = 'red';
-                console.error('API test error:', error);
-            }
-        });
-    </script>
 </body>
 </html>
