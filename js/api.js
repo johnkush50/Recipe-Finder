@@ -11,6 +11,59 @@ const RecipeAPI = (() => {
     const MAX_RESULTS = CONFIG.DEFAULT_PARAMS.MAX_RESULTS || 12;
     
     /**
+     * Test the API connection directly
+     * This function is purely for debugging API key issues
+     */
+    const testApiConnection = async () => {
+        try {
+            console.log('=== TESTING API CONNECTION ===');
+            console.log('Current CONFIG:', JSON.stringify({
+                hasConfig: !!CONFIG,
+                hasAPI: CONFIG && !!CONFIG.API,
+                hasSpoonacular: CONFIG && CONFIG.API && !!CONFIG.API.SPOONACULAR,
+                hasAPIKey: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && !!CONFIG.API.SPOONACULAR.API_KEY,
+                keyLength: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && CONFIG.API.SPOONACULAR.API_KEY ? 
+                          CONFIG.API.SPOONACULAR.API_KEY.length : 0
+            }));
+            
+            if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
+                throw new Error('API configuration is missing');
+            }
+            
+            const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
+            console.log('Using API key:', apiKey);
+            
+            // Make a very simple test request
+            const testUrl = `https://api.spoonacular.com/recipes/complexSearch?query=pasta&number=1&apiKey=${apiKey}`;
+            console.log('Testing with URL:', testUrl);
+            
+            const response = await fetch(testUrl);
+            console.log('Response status:', response.status, response.statusText);
+            
+            const text = await response.text();
+            console.log('Response text:', text);
+            
+            try {
+                const data = JSON.parse(text);
+                console.log('Parsed response:', data);
+                if (data.results && data.results.length > 0) {
+                    console.log('✅ API TEST SUCCESSFUL');
+                    return true;
+                } else if (data.status === 'failure') {
+                    console.error('❌ API TEST FAILED:', data.message || 'Unknown error');
+                    return false;
+                }
+            } catch (e) {
+                console.error('❌ Failed to parse response:', e);
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ API TEST ERROR:', error);
+            return false;
+        }
+    };
+    
+    /**
      * Search for recipes by name
      * @param {string} query - Recipe name query
      * @returns {Promise<Array>} Array of recipe objects
@@ -18,7 +71,23 @@ const RecipeAPI = (() => {
     const searchRecipesByName = async (query) => {
         console.log('Searching recipes by name:', query);
         
+        // First test the API connection
+        const apiTest = await testApiConnection();
+        if (!apiTest) {
+            throw new Error('API connection test failed. Please check your API key.');
+        }
+        
         try {
+            // Display current CONFIG values to debug
+            console.log('CONFIG object:', JSON.stringify({
+                hasConfig: !!CONFIG,
+                hasAPI: CONFIG && !!CONFIG.API,
+                hasSpoonacular: CONFIG && CONFIG.API && !!CONFIG.API.SPOONACULAR,
+                hasAPIKey: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && !!CONFIG.API.SPOONACULAR.API_KEY,
+                keyLength: CONFIG && CONFIG.API && CONFIG.API.SPOONACULAR && CONFIG.API.SPOONACULAR.API_KEY ? 
+                          CONFIG.API.SPOONACULAR.API_KEY.length : 0
+            }));
+            
             // Check if CONFIG and API key are properly loaded
             if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
                 console.error('API configuration missing or invalid:', CONFIG);
@@ -28,7 +97,13 @@ const RecipeAPI = (() => {
             const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
             const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
             
-            console.log('Using API key:', apiKey ? 'Key available (hidden for security)' : 'No key available');
+            // Check if the API key has the correct format (hex string)
+            const hasValidFormat = /^[0-9a-f]{24,}$/.test(apiKey);
+            if (!hasValidFormat) {
+                console.warn('API key may not be valid format:', apiKey);
+            }
+            
+            console.log('Using API key:', apiKey);
             
             // Set up endpoint and parameters
             const endpoint = '/complexSearch';
@@ -44,17 +119,29 @@ const RecipeAPI = (() => {
             const url = new URL(`${baseUrl}${endpoint}`);
             Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
             
-            // Hide API key in logs
-            const logUrl = url.toString().replace(apiKey, '********');
-            console.log('Fetching from:', logUrl);
+            console.log('Fetching from:', url.toString());
             
             // Fetch data from API
+            console.log('Starting fetch request...');
             const response = await fetch(url);
+            console.log('Fetch response received:', response.status, response.statusText);
             
             // Check if the request was successful
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
-                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+                const errorText = await response.text();
+                let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+                
+                try {
+                    // Try to parse the error response as JSON
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = `API Error: ${errorData.message || errorData.status || errorText}`;
+                    console.error('API error details:', errorData);
+                } catch (e) {
+                    // If parsing fails, use the raw text
+                    console.error('Raw API error response:', errorText);
+                }
+                
+                throw new Error(errorMessage);
             }
             
             const data = await response.json();
@@ -236,6 +323,7 @@ const RecipeAPI = (() => {
     return {
         searchRecipesByName,
         searchRecipesByIngredients,
-        fetchRecipeDetails
+        fetchRecipeDetails,
+        testApiConnection // Add this for debugging
     };
 })();

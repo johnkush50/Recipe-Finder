@@ -18,7 +18,7 @@ const CONFIG = {
         // Alternative API (Spoonacular)
         SPOONACULAR: {
             BASE_URL: 'https://api.spoonacular.com/recipes',
-            API_KEY: '67ae3ee7fefe438e8d2ebbf0db2b8919',     // Replace with actual API Key
+            API_KEY: '9fb12b012f7b4af7a6bf459dc4960999',     // Replace with actual API Key
         }
     },
     

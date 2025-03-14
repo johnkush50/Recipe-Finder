@@ -16,11 +16,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Create config.js with API key
-        env:
-          SPOONACULAR_API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
         run: |
           mkdir -p js
-          cat > js/config.js << EOF
+          cat > js/config.js << 'EOF'
           const CONFIG = {
               API: {
                   EDAMAM: {
@@ -31,7 +29,7 @@ jobs:
                   },
                   SPOONACULAR: {
                       BASE_URL: "https://api.spoonacular.com/recipes",
-                      API_KEY: "$SPOONACULAR_API_KEY",
+                      API_KEY: "9fb12b012f7b4af7a6bf459dc4960999",
                   }
               },
               DEFAULT_PARAMS: {
@@ -42,7 +40,7 @@ jobs:
               }
           };
           // Console log to verify the config is loaded
-          console.log('Config loaded successfully');
+          console.log('Config loaded successfully with direct API key');
           EOF
 
       - name: Setup Node.js
