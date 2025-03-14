@@ -1,77 +1,82 @@
 /**
- * Modal Module for the Recipe Finder app
+ * Modal Module for Recipe Finder
  * Handles the recipe details modal functionality
  */
 
 const Modal = (() => {
-    // Private variables
+    // DOM element references
     const modal = document.getElementById('recipe-modal');
     const closeBtn = modal.querySelector('.close');
+    const recipeDetails = document.getElementById('recipe-details');
     
     /**
-     * Opens the modal with a loading state
+     * Opens the recipe modal and loads recipe details
+     * @param {number} recipeId - The ID of the recipe to display
      */
-    const openModal = () => {
-        modal.classList.add('show');
-        document.body.style.overflow = 'hidden'; // Prevent scrolling of background content
+    const openRecipeModal = async (recipeId) => {
+        try {
+            // Show modal
+            modal.classList.add('show');
+            
+            // Show loading state in the modal
+            recipeDetails.innerHTML = `
+                <div class="loading-indicator" style="display: flex;">
+                    <div class="spinner"></div>
+                    <p>Loading recipe details...</p>
+                </div>
+            `;
+            
+            // Fetch recipe details from API
+            const recipe = await RecipeAPI.fetchRecipeDetails(recipeId);
+            
+            // Render recipe details
+            UI.renderRecipeDetails(recipe);
+            
+            // Add body class to prevent scrolling
+            document.body.classList.add('modal-open');
+        } catch (error) {
+            console.error('Error loading recipe details:', error);
+            recipeDetails.innerHTML = `
+                <div class="error-message" style="display: block;">
+                    <p>Sorry, we couldn't load the recipe details.</p>
+                    <p>Error: ${error.message}</p>
+                </div>
+            `;
+        }
     };
     
     /**
-     * Closes the modal
+     * Closes the recipe modal
      */
-    const closeModal = () => {
+    const closeRecipeModal = () => {
         modal.classList.remove('show');
-        document.body.style.overflow = ''; // Restore scrolling
+        document.body.classList.remove('modal-open');
+        
+        // Clear recipe details after animation completes
+        setTimeout(() => {
+            recipeDetails.innerHTML = '';
+        }, 300);
     };
     
-    // Set up event listeners
-    closeBtn.addEventListener('click', closeModal);
+    // Add event listeners
+    closeBtn.addEventListener('click', closeRecipeModal);
     
-    // Close modal when clicking outside the modal content
+    // Close when clicking outside the modal content
     window.addEventListener('click', (event) => {
         if (event.target === modal) {
-            closeModal();
+            closeRecipeModal();
         }
     });
     
-    // Close modal on escape key press
+    // Close when pressing Escape key
     window.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && modal.classList.contains('show')) {
-            closeModal();
+            closeRecipeModal();
         }
     });
     
     // Public API
     return {
-        /**
-         * Opens the modal and loads recipe details
-         * @param {string|number} recipeId - The ID of the recipe to display
-         */
-        openRecipeModal: async (recipeId) => {
-            try {
-                openModal();
-                document.getElementById('recipe-details').innerHTML = `
-                    <div class="modal-loading">
-                        <p>Loading recipe details...</p>
-                    </div>
-                `;
-                
-                const recipe = await RecipeAPI.fetchRecipeDetails(recipeId);
-                UI.renderRecipeDetails(recipe);
-            } catch (error) {
-                document.getElementById('recipe-details').innerHTML = `
-                    <div class="modal-error">
-                        <p>Sorry, we couldn't load the recipe details.</p>
-                        <p>Error: ${error.message}</p>
-                    </div>
-                `;
-                console.error('Error loading recipe details:', error);
-            }
-        },
-        
-        /**
-         * Closes the modal
-         */
-        closeModal
+        openRecipeModal
     };
 })();

@@ -1,134 +1,205 @@
 /**
- * API Service for the Recipe Finder app
- * Handles all API calls and data processing
+ * API Module for Recipe Finder
+ * Handles all interactions with the recipe API services
  */
 
 const RecipeAPI = (() => {
-    // Private variables and methods
-    const apiInUse = 'SPOONACULAR'; // Set which API to use ('EDAMAM' or 'SPOONACULAR')
+    // Default API to use
+    const DEFAULT_API = 'SPOONACULAR';
+    
+    // Maximum number of results to return
+    const MAX_RESULTS = CONFIG.DEFAULT_PARAMS.MAX_RESULTS || 12;
     
     /**
-     * Constructs the API URL based on the search query and configuration
-     * @param {string} query - The search query entered by user
-     * @returns {string} The complete API URL for the request
+     * Search for recipes by name
+     * @param {string} query - Recipe name query
+     * @returns {Promise<Array>} Array of recipe objects
      */
-    const buildApiUrl = (query) => {
-        if (apiInUse === 'EDAMAM') {
-            return `${CONFIG.API.EDAMAM.BASE_URL}?type=${CONFIG.API.EDAMAM.TYPE}&q=${encodeURIComponent(query)}&app_id=${CONFIG.API.EDAMAM.APP_ID}&app_key=${CONFIG.API.EDAMAM.APP_KEY}`;
-        } else {
-            return `${CONFIG.API.SPOONACULAR.BASE_URL}/complexSearch?query=${encodeURIComponent(query)}&number=${CONFIG.DEFAULT_PARAMS.MAX_RESULTS}&apiKey=${CONFIG.API.SPOONACULAR.API_KEY}`;
+    const searchRecipesByName = async (query) => {
+        console.log('Searching recipes by name:', query);
+        
+        try {
+            const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
+            const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+            
+            // Set up endpoint and parameters
+            const endpoint = '/complexSearch';
+            const params = {
+                query: query,
+                number: MAX_RESULTS,
+                addRecipeInformation: true,
+                fillIngredients: true,
+                apiKey: apiKey
+            };
+            
+            // Build URL with parameters
+            const url = new URL(`${baseUrl}${endpoint}`);
+            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+            
+            console.log('Fetching from:', url.toString());
+            
+            // Fetch data from API
+            const response = await fetch(url);
+            
+            // Check if the request was successful
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            return processRecipeSearchResults(data);
+        } catch (error) {
+            console.error('API error:', error);
+            throw new Error(`API error: ${error.message}`);
         }
     };
     
     /**
-     * Standardizes the recipe data format from different APIs
-     * @param {Object} data - The raw API response
-     * @returns {Array} Array of standardized recipe objects
+     * Search for recipes by ingredients
+     * @param {Array} ingredients - Array of ingredient names
+     * @returns {Promise<Array>} Array of recipe objects
      */
-    const normalizeRecipeData = (data) => {
-        if (apiInUse === 'EDAMAM') {
-            return data.hits.map(hit => ({
-                id: hit.recipe.uri.split('#recipe_')[1],
-                title: hit.recipe.label,
-                image: hit.recipe.image,
-                source: hit.recipe.source,
-                url: hit.recipe.url,
-                ingredients: hit.recipe.ingredientLines,
-                calories: Math.round(hit.recipe.calories),
-                totalTime: hit.recipe.totalTime,
-                cuisineType: hit.recipe.cuisineType,
-                mealType: hit.recipe.mealType,
-                dietLabels: hit.recipe.dietLabels,
-                healthLabels: hit.recipe.healthLabels
-            }));
-        } else {
-            // For Spoonacular API
-            return data.results.map(recipe => ({
-                id: recipe.id,
-                title: recipe.title,
-                image: recipe.image,
-                imageType: recipe.imageType,
-                calories: null, // Would need additional API call for details in Spoonacular
-                ingredients: [] // Would need additional API call for details in Spoonacular
-            }));
+    const searchRecipesByIngredients = async (ingredients) => {
+        console.log('Searching recipes by ingredients:', ingredients);
+        
+        try {
+            const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
+            const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+            
+            // Set up endpoint and parameters
+            const endpoint = '/findByIngredients';
+            const params = {
+                ingredients: ingredients.join(','),
+                number: MAX_RESULTS,
+                ranking: 2, // maximize used ingredients
+                ignorePantry: true,
+                apiKey: apiKey
+            };
+            
+            // Build URL with parameters
+            const url = new URL(`${baseUrl}${endpoint}`);
+            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+            
+            console.log('Fetching from:', url.toString());
+            
+            // Fetch data from API
+            const response = await fetch(url);
+            
+            // Check if the request was successful
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            return processIngredientSearchResults(data);
+        } catch (error) {
+            console.error('API error:', error);
+            throw new Error(`API error: ${error.message}`);
         }
     };
     
     /**
-     * Fetches detailed information for a specific recipe
-     * @param {string|number} recipeId - The ID of the recipe to fetch details for
-     * @returns {Promise} Promise that resolves to the detailed recipe data
+     * Process results from recipe name search
+     * @param {Object} data - API response data
+     * @returns {Array} Processed recipe results
+     */
+    const processRecipeSearchResults = (data) => {
+        if (!data.results || !Array.isArray(data.results)) {
+            return [];
+        }
+        
+        return data.results.map(recipe => ({
+            id: recipe.id,
+            title: recipe.title,
+            image: recipe.image,
+            readyInMinutes: recipe.readyInMinutes,
+            servings: recipe.servings,
+            calories: recipe.nutrition ? Math.round(recipe.nutrition.nutrients.find(n => n.name === 'Calories')?.amount || 0) : null,
+            ingredients: recipe.extendedIngredients ? recipe.extendedIngredients.map(ing => ing.original) : [],
+            summary: recipe.summary,
+            instructions: recipe.instructions,
+            sourceUrl: recipe.sourceUrl
+        }));
+    };
+    
+    /**
+     * Process results from ingredient search
+     * @param {Array} data - API response data
+     * @returns {Array} Processed recipe results
+     */
+    const processIngredientSearchResults = (data) => {
+        if (!Array.isArray(data)) {
+            return [];
+        }
+        
+        return data.map(recipe => ({
+            id: recipe.id,
+            title: recipe.title,
+            image: recipe.image,
+            usedIngredientCount: recipe.usedIngredientCount,
+            missedIngredientCount: recipe.missedIngredientCount,
+            likes: recipe.likes,
+            // These will be populated when viewing details
+            readyInMinutes: null,
+            servings: null,
+            ingredients: recipe.usedIngredients.concat(recipe.missedIngredients).map(ing => ing.original),
+            summary: null,
+            instructions: null,
+            sourceUrl: null
+        }));
+    };
+    
+    /**
+     * Fetch detailed information for a specific recipe
+     * @param {number} recipeId - The recipe ID to fetch details for
+     * @returns {Promise<Object>} Detailed recipe information
      */
     const fetchRecipeDetails = async (recipeId) => {
-        try {
-            if (apiInUse === 'EDAMAM') {
-                // For Edamam, we already have detailed info from the search results
-                // Just fetch the recipe from the current results
-                const recipe = UI.getStoredRecipes().find(r => r.id === recipeId);
-                return recipe;
-            } else {
-                // For Spoonacular, we need a separate API call
-                const response = await fetch(
-                    `${CONFIG.API.SPOONACULAR.BASE_URL}/${recipeId}/information?apiKey=${CONFIG.API.SPOONACULAR.API_KEY}`
-                );
-                
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                return {
-                    id: data.id,
-                    title: data.title,
-                    image: data.image,
-                    summary: data.summary,
-                    ingredients: data.extendedIngredients.map(ing => ing.original),
-                    instructions: data.instructions,
-                    sourceUrl: data.sourceUrl,
-                    readyInMinutes: data.readyInMinutes,
-                    servings: data.servings,
-                    cuisines: data.cuisines,
-                    dishTypes: data.dishTypes
-                };
-            }
-        } catch (error) {
-            console.error('Error fetching recipe details:', error);
-            throw error;
+        const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
+        const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+        
+        // Build URL for recipe information
+        const url = new URL(`${baseUrl}/${recipeId}/information`);
+        url.searchParams.append('apiKey', apiKey);
+        url.searchParams.append('includeNutrition', 'true');
+        
+        console.log('Fetching recipe details from:', url.toString());
+        
+        // Fetch data from API
+        const response = await fetch(url);
+        
+        // Check if the request was successful
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
+            throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
         }
+        
+        const data = await response.json();
+        
+        // Process and return the recipe details
+        return {
+            id: data.id,
+            title: data.title,
+            image: data.image,
+            readyInMinutes: data.readyInMinutes,
+            servings: data.servings,
+            calories: data.nutrition ? Math.round(data.nutrition.nutrients.find(n => n.name === 'Calories')?.amount || 0) : null,
+            ingredients: data.extendedIngredients ? data.extendedIngredients.map(ing => ing.original) : [],
+            summary: data.summary,
+            instructions: data.instructions,
+            sourceUrl: data.sourceUrl,
+            diets: data.diets || [],
+            dishTypes: data.dishTypes || [],
+            analyzedInstructions: data.analyzedInstructions || []
+        };
     };
-
+    
     // Public API
     return {
-        /**
-         * Searches for recipes based on user query
-         * @param {string} query - The search query entered by user
-         * @returns {Promise} Promise that resolves to normalized recipe data
-         */
-        searchRecipes: async (query) => {
-            try {
-                const apiUrl = buildApiUrl(query);
-                
-                const response = await fetch(apiUrl);
-                
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                return normalizeRecipeData(data);
-            } catch (error) {
-                console.error('Error fetching recipes:', error);
-                throw error;
-            }
-        },
-        
-        // Expose the fetchRecipeDetails function
-        fetchRecipeDetails,
-        
-        /**
-         * Get the currently active API name
-         * @returns {string} The name of the API currently in use
-         */
-        getActiveAPI: () => apiInUse
+        searchRecipesByName,
+        searchRecipesByIngredients,
+        fetchRecipeDetails
     };
 })();

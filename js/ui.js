@@ -1,99 +1,66 @@
 /**
- * UI Module for the Recipe Finder app
+ * UI Module for Recipe Finder
  * Handles all DOM manipulation and UI rendering
  */
 
 const UI = (() => {
-    // Private variables and methods
+    // DOM element references
     const resultsContainer = document.getElementById('results-container');
     const loadingIndicator = document.getElementById('loading');
     const errorMessage = document.getElementById('error-message');
     
-    // Store recipes data locally to use when showing recipe details
-    let recipesData = [];
-    
     /**
-     * Shows the loading indicator and hides error messages
-     */
-    const showLoading = () => {
-        CONFIG.STATE.IS_LOADING = true;
-        loadingIndicator.style.display = 'block';
-        errorMessage.style.display = 'none';
-        errorMessage.textContent = '';
-    };
-    
-    /**
-     * Hides the loading indicator
-     */
-    const hideLoading = () => {
-        CONFIG.STATE.IS_LOADING = false;
-        loadingIndicator.style.display = 'none';
-    };
-    
-    /**
-     * Displays an error message to the user
-     * @param {string} message - The error message to display
-     */
-    const showError = (message) => {
-        errorMessage.textContent = message;
-        errorMessage.style.display = 'block';
-    };
-    
-    /**
-     * Clears the results container
-     */
-    const clearResults = () => {
-        resultsContainer.innerHTML = '';
-    };
-    
-    /**
-     * Creates a recipe card element
-     * @param {Object} recipe - The recipe data
-     * @returns {HTMLElement} The created recipe card element
+     * Create a recipe card element
+     * @param {Object} recipe - Recipe data object
+     * @returns {HTMLElement} The recipe card element
      */
     const createRecipeCard = (recipe) => {
         const card = document.createElement('div');
         card.className = 'recipe-card';
-        card.dataset.id = recipe.id; // Store recipe ID as a data attribute
+        card.dataset.recipeId = recipe.id;
         
-        // Create image element or placeholder
-        const imageHtml = recipe.image 
-            ? `<img src="${recipe.image}" alt="${recipe.title}" loading="lazy">` 
-            : '<div class="image-placeholder">No image available</div>';
+        // Calculate recipe image URL or use placeholder
+        const imageUrl = recipe.image || 'images/placeholder.jpg';
         
-        // Create short description from ingredients or cuisine type
-        let description = '';
-        if (recipe.ingredients && recipe.ingredients.length > 0) {
-            // Show first few ingredients
-            const ingredientsList = recipe.ingredients.slice(0, 3);
-            description = `<p>Ingredients: ${ingredientsList.join(', ')}${recipe.ingredients.length > 3 ? '...' : ''}</p>`;
-        } else if (recipe.cuisineType) {
-            description = `<p>Cuisine: ${recipe.cuisineType}</p>`;
-        } else {
-            description = '<p>Click for more details</p>';
+        // Create time and calories elements if available
+        let metaHtml = '';
+        if (recipe.readyInMinutes) {
+            metaHtml += `
+                <div class="recipe-time">
+                    <i class="fas fa-clock"></i> ${recipe.readyInMinutes} min
+                </div>
+            `;
         }
         
-        // Add additional details if available
-        let additionalDetails = '';
-        if (recipe.totalTime) {
-            additionalDetails += `<span class="recipe-time">⏰ ${recipe.totalTime} min</span>`;
-        }
         if (recipe.calories) {
-            additionalDetails += `<span class="recipe-calories">🔥 ${recipe.calories} cal</span>`;
+            metaHtml += `
+                <div class="recipe-calories">
+                    <i class="fas fa-fire"></i> ${recipe.calories} cal
+                </div>
+            `;
         }
         
+        // Add ingredient usage counts for ingredient search results
+        if (recipe.usedIngredientCount !== undefined) {
+            metaHtml += `
+                <div class="recipe-ingredients-match">
+                    <i class="fas fa-check-circle"></i> ${recipe.usedIngredientCount} matching
+                </div>
+            `;
+        }
+        
+        // Build HTML for recipe card
         card.innerHTML = `
-            ${imageHtml}
+            <img src="${imageUrl}" alt="${recipe.title}">
             <div class="recipe-info">
                 <h3>${recipe.title}</h3>
-                ${description}
-                <div class="recipe-meta">${additionalDetails}</div>
-                <button class="view-recipe">View Recipe</button>
+                ${metaHtml ? `<div class="recipe-meta">${metaHtml}</div>` : ''}
+                <button class="view-recipe-btn" data-recipe-id="${recipe.id}">View Recipe</button>
             </div>
         `;
         
-        // Add event listener to view the recipe details
-        card.addEventListener('click', () => {
+        // Add event listener to view recipe button
+        card.querySelector('.view-recipe-btn').addEventListener('click', () => {
             Modal.openRecipeModal(recipe.id);
         });
         
@@ -101,130 +68,179 @@ const UI = (() => {
     };
     
     /**
-     * Creates a message when no results are found
-     * @param {string} query - The search query
-     * @returns {HTMLElement} The no results message element
+     * Render recipe details in the modal
+     * @param {Object} recipe - The recipe details object
      */
-    const createNoResultsMessage = (query) => {
-        const message = document.createElement('div');
-        message.className = 'no-results';
-        message.innerHTML = `
-            <p>No recipes found for "${query}".</p>
-            <p>Try searching with different ingredients or a simpler query.</p>
+    const renderRecipeDetails = (recipe) => {
+        const recipeDetails = document.getElementById('recipe-details');
+        
+        // Format the ingredients and instructions
+        const ingredientsList = recipe.ingredients.map(ingredient => 
+            `<li>${ingredient}</li>`
+        ).join('');
+        
+        let instructionsHtml = '';
+        if (recipe.analyzedInstructions && recipe.analyzedInstructions.length > 0) {
+            // Use structured instructions if available
+            const steps = recipe.analyzedInstructions[0].steps;
+            instructionsHtml = steps.map(step => 
+                `<li>${step.step}</li>`
+            ).join('');
+        } else if (recipe.instructions) {
+            // Otherwise use text instructions, clean up html
+            const cleanInstructions = recipe.instructions.replace(/<[^>]*>/g, '');
+            instructionsHtml = `<li>${cleanInstructions}</li>`;
+        } else {
+            instructionsHtml = '<li>No instructions available. Check the source website.</li>';
+        }
+        
+        // Format meta information if available
+        let metaHtml = '';
+        if (recipe.readyInMinutes) {
+            metaHtml += `<span><i class="fas fa-clock"></i> ${recipe.readyInMinutes} min</span>`;
+        }
+        if (recipe.servings) {
+            metaHtml += `<span><i class="fas fa-user-friends"></i> ${recipe.servings} servings</span>`;
+        }
+        if (recipe.calories) {
+            metaHtml += `<span><i class="fas fa-fire"></i> ${recipe.calories} calories</span>`;
+        }
+        if (recipe.diets && recipe.diets.length > 0) {
+            metaHtml += `<span><i class="fas fa-leaf"></i> ${recipe.diets.join(', ')}</span>`;
+        }
+        
+        // Build HTML for recipe details
+        recipeDetails.innerHTML = `
+            <div class="recipe-details-header">
+                <h2>${recipe.title}</h2>
+                ${metaHtml ? `<div class="recipe-details-meta">${metaHtml}</div>` : ''}
+                <img src="${recipe.image}" alt="${recipe.title}">
+            </div>
+            
+            <div class="recipe-content">
+                <div class="recipe-ingredients">
+                    <h3><i class="fas fa-list"></i> Ingredients</h3>
+                    <ul>${ingredientsList}</ul>
+                </div>
+                
+                <div class="recipe-instructions">
+                    <h3><i class="fas fa-utensils"></i> Instructions</h3>
+                    <ol>${instructionsHtml}</ol>
+                </div>
+            </div>
+            
+            ${recipe.sourceUrl ? `
+                <div class="recipe-source">
+                    <a href="${recipe.sourceUrl}" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-external-link-alt"></i> View Original Recipe
+                    </a>
+                </div>
+            ` : ''}
         `;
-        return message;
+    };
+    
+    /**
+     * Create a message for no results
+     * @param {string} searchQuery - The search query that yielded no results
+     * @returns {HTMLElement} - The no results message element
+     */
+    const createNoResultsMessage = (searchMode) => {
+        const noResults = document.createElement('div');
+        noResults.className = 'no-results';
+        
+        if (searchMode === 'ingredients') {
+            noResults.innerHTML = `
+                <p>No recipes found with those ingredients.</p>
+                <p>Try adding more ingredients or using different ones.</p>
+            `;
+        } else {
+            noResults.innerHTML = `
+                <p>No recipes found for that search term.</p>
+                <p>Try a different search term or check your spelling.</p>
+            `;
+        }
+        
+        return noResults;
+    };
+    
+    /**
+     * Show loading indicator
+     */
+    const showLoading = () => {
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'flex';
+        }
+        
+        // Hide any existing error message
+        hideError();
+    };
+    
+    /**
+     * Hide loading indicator
+     */
+    const hideLoading = () => {
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+    };
+    
+    /**
+     * Show error message
+     * @param {string} message - Error message to display
+     */
+    const showError = (message) => {
+        if (errorMessage) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+    };
+    
+    /**
+     * Hide error message
+     */
+    const hideError = () => {
+        if (errorMessage) {
+            errorMessage.style.display = 'none';
+        }
+    };
+    
+    /**
+     * Render recipes to the page
+     * @param {Array} recipes - Array of recipe objects
+     */
+    const renderRecipes = (recipes) => {
+        // Clear previous results
+        resultsContainer.innerHTML = '';
+        
+        // Handle empty results
+        if (!recipes || recipes.length === 0) {
+            const searchMode = AppState.getSearchMode();
+            resultsContainer.appendChild(createNoResultsMessage(searchMode));
+            return;
+        }
+        
+        // Create a document fragment for efficient DOM manipulation
+        const fragment = document.createDocumentFragment();
+        
+        // Create and append recipe cards
+        recipes.forEach(recipe => {
+            fragment.appendChild(createRecipeCard(recipe));
+        });
+        
+        // Add all cards to the results container
+        resultsContainer.appendChild(fragment);
+        
+        // Scroll to results section
+        document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
     };
     
     // Public API
     return {
-        /**
-         * Renders the recipes list to the UI
-         * @param {Array} recipes - The array of recipe objects
-         * @param {string} query - The search query
-         */
-        renderRecipes: (recipes, query) => {
-            clearResults();
-            recipesData = recipes; // Store for later use
-            
-            if (recipes.length === 0) {
-                resultsContainer.appendChild(createNoResultsMessage(query));
-                return;
-            }
-            
-            // Create and append recipe cards
-            const fragment = document.createDocumentFragment();
-            recipes.forEach(recipe => {
-                fragment.appendChild(createRecipeCard(recipe));
-            });
-            
-            resultsContainer.appendChild(fragment);
-        },
-        
-        /**
-         * Shows the loading indicator and hides error messages
-         */
+        renderRecipes,
+        renderRecipeDetails,
         showLoading,
-        
-        /**
-         * Hides the loading indicator
-         */
         hideLoading,
-        
-        /**
-         * Displays an error message to the user
-         * @param {string} message - The error message to display
-         */
         showError,
-        
-        /**
-         * Retrieves the stored recipe data
-         * @returns {Array} The stored recipe data
-         */
-        getStoredRecipes: () => recipesData,
-        
-        /**
-         * Renders detailed recipe information in the modal
-         * @param {Object} recipe - The detailed recipe object
-         */
-        renderRecipeDetails: (recipe) => {
-            const recipeDetails = document.getElementById('recipe-details');
-            
-            // Format ingredients list
-            const ingredientsList = recipe.ingredients
-                ? recipe.ingredients.map(ing => `<li>${ing}</li>`).join('')
-                : '<li>No ingredients information available</li>';
-            
-            // Format instructions if available
-            let instructionsHtml = '<p>No detailed instructions available. Please check the source website.</p>';
-            if (recipe.instructions) {
-                // Check if instructions are already in HTML format
-                if (recipe.instructions.includes('<ol>') || recipe.instructions.includes('<p>')) {
-                    instructionsHtml = recipe.instructions;
-                } else {
-                    // Convert plain text to HTML with proper formatting
-                    const steps = recipe.instructions.split('\n')
-                        .filter(step => step.trim() !== '')
-                        .map(step => `<li>${step}</li>`);
-                    
-                    if (steps.length > 0) {
-                        instructionsHtml = `<ol>${steps.join('')}</ol>`;
-                    }
-                }
-            }
-            
-            // Additional recipe metadata
-            let metadataHtml = '<div class="recipe-metadata">';
-            if (recipe.totalTime) metadataHtml += `<span>⏰ Cook Time: ${recipe.totalTime} minutes</span>`;
-            if (recipe.calories) metadataHtml += `<span>🔥 Calories: ${recipe.calories}</span>`;
-            if (recipe.servings) metadataHtml += `<span>👥 Servings: ${recipe.servings}</span>`;
-            metadataHtml += '</div>';
-            
-            // Source information
-            const sourceInfo = recipe.source || recipe.sourceUrl 
-                ? `<p class="recipe-source">Source: ${recipe.source || 'Original Recipe'}
-                   ${recipe.url ? `<a href="${recipe.url}" target="_blank">View Original</a>` : ''}</p>`
-                : '';
-            
-            recipeDetails.innerHTML = `
-                <h3>${recipe.title}</h3>
-                ${metadataHtml}
-                <div class="recipe-content">
-                    <div class="recipe-image">
-                        ${recipe.image ? `<img src="${recipe.image}" alt="${recipe.title}">` : ''}
-                    </div>
-                    <div class="recipe-text">
-                        <div class="recipe-ingredients">
-                            <h4>Ingredients</h4>
-                            <ul>${ingredientsList}</ul>
-                        </div>
-                        <div class="recipe-instructions">
-                            <h4>Instructions</h4>
-                            ${instructionsHtml}
-                        </div>
-                        ${sourceInfo}
-                    </div>
-                </div>
-            `;
-        }
+        hideError
     };
 })();

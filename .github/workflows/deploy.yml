@@ -12,54 +12,40 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 🛎️
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Create Config File 🔑
+      - name: Create Config File
         env:
-          SPOONACULAR_API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
+          API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
         run: |
-          # Create the config.js file with the API key from secrets
           mkdir -p js
-          cat > js/config.js << EOF
-          /**
-           * Configuration settings for the Recipe Finder app
-           * Contains API endpoints and keys
-           */
-          
+          cat > js/config.js << 'EOL'
           const CONFIG = {
-              // API configuration
               API: {
-                  // Edamam Recipe API configuration
                   EDAMAM: {
-                      BASE_URL: 'https://api.edamam.com/api/recipes/v2',
-                      APP_ID: 'YOUR_APP_ID_HERE',
-                      APP_KEY: 'YOUR_APP_KEY_HERE',
-                      TYPE: 'public',
+                      BASE_URL: "https://api.edamam.com/api/recipes/v2",
+                      APP_ID: "YOUR_APP_ID_HERE",
+                      APP_KEY: "YOUR_APP_KEY_HERE",
+                      TYPE: "public",
                   },
-                  
-                  // Spoonacular API configuration
                   SPOONACULAR: {
-                      BASE_URL: 'https://api.spoonacular.com/recipes',
-                      API_KEY: "${SPOONACULAR_API_KEY}",
+                      BASE_URL: "https://api.spoonacular.com/recipes",
+                      API_KEY: "PLACEHOLDER_API_KEY",
                   }
               },
-              
-              // Default parameters
               DEFAULT_PARAMS: {
-                  // Number of results to return
                   MAX_RESULTS: 12
               },
-              
-              // State flags for the application
               STATE: {
                   IS_LOADING: false
               }
           };
-          EOF
+          EOL
+          # Replace placeholder with the API key from environment variable
+          sed -i "s/PLACEHOLDER_API_KEY/$API_KEY/g" js/config.js
 
-      - name: Deploy 🚀
+      - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: . # The folder the action should deploy
-          branch: gh-pages # The branch the action should deploy to
+          folder: . # The folder to deploy
