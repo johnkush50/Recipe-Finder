@@ -50,11 +50,11 @@ const Modal = (() => {
         openRecipeModal: async (recipeId) => {
             try {
                 openModal();
-                document.getElementById('recipe-details').innerHTML = '
+                document.getElementById('recipe-details').innerHTML = `
                     <div class="modal-loading">
                         <p>Loading recipe details...</p>
                     </div>
-                ';
+                `;
                 
                 const recipe = await RecipeAPI.fetchRecipeDetails(recipeId);
                 UI.renderRecipeDetails(recipe);
