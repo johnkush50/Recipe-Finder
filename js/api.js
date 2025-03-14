@@ -19,8 +19,16 @@ const RecipeAPI = (() => {
         console.log('Searching recipes by name:', query);
         
         try {
+            // Check if CONFIG and API key are properly loaded
+            if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
+                console.error('API configuration missing or invalid:', CONFIG);
+                throw new Error('API configuration is missing or invalid');
+            }
+            
             const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
             const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+            
+            console.log('Using API key:', apiKey ? 'Key available (hidden for security)' : 'No key available');
             
             // Set up endpoint and parameters
             const endpoint = '/complexSearch';
@@ -36,7 +44,9 @@ const RecipeAPI = (() => {
             const url = new URL(`${baseUrl}${endpoint}`);
             Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
             
-            console.log('Fetching from:', url.toString());
+            // Hide API key in logs
+            const logUrl = url.toString().replace(apiKey, '********');
+            console.log('Fetching from:', logUrl);
             
             // Fetch data from API
             const response = await fetch(url);
@@ -48,6 +58,7 @@ const RecipeAPI = (() => {
             }
             
             const data = await response.json();
+            console.log('API response received with', data.results ? data.results.length : 0, 'recipes');
             return processRecipeSearchResults(data);
         } catch (error) {
             console.error('API error:', error);
@@ -64,8 +75,16 @@ const RecipeAPI = (() => {
         console.log('Searching recipes by ingredients:', ingredients);
         
         try {
+            // Check if CONFIG and API key are properly loaded
+            if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
+                console.error('API configuration missing or invalid:', CONFIG);
+                throw new Error('API configuration is missing or invalid');
+            }
+            
             const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
             const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+            
+            console.log('Using API key:', apiKey ? 'Key available (hidden for security)' : 'No key available');
             
             // Set up endpoint and parameters
             const endpoint = '/findByIngredients';
@@ -81,7 +100,9 @@ const RecipeAPI = (() => {
             const url = new URL(`${baseUrl}${endpoint}`);
             Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
             
-            console.log('Fetching from:', url.toString());
+            // Hide API key in logs
+            const logUrl = url.toString().replace(apiKey, '********');
+            console.log('Fetching from:', logUrl);
             
             // Fetch data from API
             const response = await fetch(url);
@@ -93,6 +114,7 @@ const RecipeAPI = (() => {
             }
             
             const data = await response.json();
+            console.log('API response received with', data.length, 'recipes');
             return processIngredientSearchResults(data);
         } catch (error) {
             console.error('API error:', error);
@@ -157,43 +179,57 @@ const RecipeAPI = (() => {
      * @returns {Promise<Object>} Detailed recipe information
      */
     const fetchRecipeDetails = async (recipeId) => {
-        const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
-        const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
-        
-        // Build URL for recipe information
-        const url = new URL(`${baseUrl}/${recipeId}/information`);
-        url.searchParams.append('apiKey', apiKey);
-        url.searchParams.append('includeNutrition', 'true');
-        
-        console.log('Fetching recipe details from:', url.toString());
-        
-        // Fetch data from API
-        const response = await fetch(url);
-        
-        // Check if the request was successful
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
-            throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+        try {
+            // Check if CONFIG and API key are properly loaded
+            if (!CONFIG || !CONFIG.API || !CONFIG.API.SPOONACULAR || !CONFIG.API.SPOONACULAR.API_KEY) {
+                console.error('API configuration missing or invalid:', CONFIG);
+                throw new Error('API configuration is missing or invalid');
+            }
+            
+            const apiKey = CONFIG.API.SPOONACULAR.API_KEY;
+            const baseUrl = CONFIG.API.SPOONACULAR.BASE_URL;
+            
+            // Build URL for recipe information
+            const url = new URL(`${baseUrl}/${recipeId}/information`);
+            url.searchParams.append('apiKey', apiKey);
+            url.searchParams.append('includeNutrition', 'true');
+            
+            // Hide API key in logs
+            const logUrl = url.toString().replace(apiKey, '********');
+            console.log('Fetching recipe details from:', logUrl);
+            
+            // Fetch data from API
+            const response = await fetch(url);
+            
+            // Check if the request was successful
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Unknown API error' }));
+                throw new Error(`${response.status}: ${errorData.message || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('Recipe details received');
+            
+            // Process and return the recipe details
+            return {
+                id: data.id,
+                title: data.title,
+                image: data.image,
+                readyInMinutes: data.readyInMinutes,
+                servings: data.servings,
+                calories: data.nutrition ? Math.round(data.nutrition.nutrients.find(n => n.name === 'Calories')?.amount || 0) : null,
+                ingredients: data.extendedIngredients ? data.extendedIngredients.map(ing => ing.original) : [],
+                summary: data.summary,
+                instructions: data.instructions,
+                sourceUrl: data.sourceUrl,
+                diets: data.diets || [],
+                dishTypes: data.dishTypes || [],
+                analyzedInstructions: data.analyzedInstructions || []
+            };
+        } catch (error) {
+            console.error('Error fetching recipe details:', error);
+            throw new Error(`Error fetching recipe details: ${error.message}`);
         }
-        
-        const data = await response.json();
-        
-        // Process and return the recipe details
-        return {
-            id: data.id,
-            title: data.title,
-            image: data.image,
-            readyInMinutes: data.readyInMinutes,
-            servings: data.servings,
-            calories: data.nutrition ? Math.round(data.nutrition.nutrients.find(n => n.name === 'Calories')?.amount || 0) : null,
-            ingredients: data.extendedIngredients ? data.extendedIngredients.map(ing => ing.original) : [],
-            summary: data.summary,
-            instructions: data.instructions,
-            sourceUrl: data.sourceUrl,
-            diets: data.diets || [],
-            dishTypes: data.dishTypes || [],
-            analyzedInstructions: data.analyzedInstructions || []
-        };
     };
     
     // Public API

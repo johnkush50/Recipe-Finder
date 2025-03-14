@@ -15,10 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Create Config File
+      - name: Create config.js with API key
+        env:
+          SPOONACULAR_API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
         run: |
           mkdir -p js
-          API_KEY="$SPOONACULAR_API_KEY"
           cat > js/config.js << EOF
           const CONFIG = {
               API: {
@@ -30,7 +31,7 @@ jobs:
                   },
                   SPOONACULAR: {
                       BASE_URL: "https://api.spoonacular.com/recipes",
-                      API_KEY: "${API_KEY}",
+                      API_KEY: "$SPOONACULAR_API_KEY",
                   }
               },
               DEFAULT_PARAMS: {
@@ -40,9 +41,9 @@ jobs:
                   IS_LOADING: false
               }
           };
+          // Console log to verify the config is loaded
+          console.log('Config loaded successfully');
           EOF
-        env:
-          SPOONACULAR_API_KEY: ${{ secrets.SPOONACULAR_API_KEY }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
